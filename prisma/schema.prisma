@@ -1,0 +1,39 @@
+generator client { provider = "prisma-client-js" }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum AppointmentStatus { PENDING CONFIRMED DENIED CANCELLED }
+
+model Clinic {
+  id        String  @id @default(cuid())
+  name      String
+  apiUrl    String
+  slots     AvailabilitySlot[]
+  appointments Appointment[]
+}
+
+model AvailabilitySlot {
+  id        String   @id @default(cuid())
+  startsAt  DateTime
+  endsAt    DateTime
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  appointment Appointment?   // one-to-one = a slot can only be booked once
+}
+
+model Appointment {
+  id                  String   @id @default(cuid())
+  slotId              String   @unique
+  slot                AvailabilitySlot @relation(fields: [slotId], references: [id])
+  clinicId            String
+  clinic              Clinic   @relation(fields: [clinicId], references: [id])
+  customerName        String
+  customerPhone       String   // E.164, e.g. +9725XXXXXXXX
+  status              AppointmentStatus @default(PENDING)
+  clinicReservationId String?
+  reminderSentAt      DateTime?
+  createdAt           DateTime @default(now())
+}

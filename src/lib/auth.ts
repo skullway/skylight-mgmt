@@ -1,5 +1,81 @@
-// Phase 1 replaces this with a next-auth (Google + ADMIN_EMAILS allowlist) session check.
-// Until then every admin endpoint is locked.
+import "server-only";
+import { redirect } from "next/navigation";
+import { getServerSession, type NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+
+function adminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isAdminEmail(email: string | null | undefined): boolean {
+  return !!email && adminEmails().includes(email.toLowerCase());
+}
+
+// Local-only shortcut so the admin area can be used before Google OAuth is set up.
+// `next build`/`next start` set NODE_ENV=production, so this can never be enabled in a deploy.
+export const devLoginEnabled =
+  process.env.NODE_ENV !== "production" && process.env.DEV_LOGIN === "true";
+
+export const authOptions: NextAuthOptions = {
+  session: { strategy: "jwt" },
+  pages: { signIn: "/login", error: "/login" },
+  providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    }),
+    ...(devLoginEnabled
+      ? [
+          CredentialsProvider({
+            id: "dev",
+            name: "Dev login",
+            credentials: {},
+            async authorize() {
+              return { id: "dev", name: "Dev Admin", email: "dev@localhost" };
+            },
+          }),
+        ]
+      : []),
+  ],
+  callbacks: {
+    async signIn({ account, user }) {
+      if (account?.provider === "dev") return devLoginEnabled;
+      return isAdminEmail(user.email);
+    },
+    async jwt({ token, account }) {
+      if (account) token.admin = account.provider === "dev" ? devLoginEnabled : isAdminEmail(token.email);
+      return token;
+    },
+    async session({ session, token }) {
+      session.user.admin = token.admin === true;
+      return session;
+    },
+  },
+};
+
+export async function getAdminSession() {
+  const session = await getServerSession(authOptions);
+  return session?.user.admin ? session : null;
+}
+
 export async function isAdmin(): Promise<boolean> {
-  return false;
+  return (await getAdminSession()) !== null;
+}
+
+// For admin pages and data loaders: send anonymous visitors to the login page.
+export async function requireAdminPage() {
+  const session = await getAdminSession();
+  if (!session) redirect("/login?callbackUrl=/admin");
+  return session;
+}
+
+// For Server Actions: proxy.ts doesn't cover them reliably, so every action checks for itself.
+export async function requireAdmin() {
+  const session = await getAdminSession();
+  if (!session) throw new Error("Unauthorized");
+  return session;
 }

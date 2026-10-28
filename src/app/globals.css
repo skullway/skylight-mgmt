@@ -23,3 +23,27 @@ body {
   color: var(--foreground);
   font-family: var(--font-heebo), Arial, sans-serif;
 }
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950;
+  }
+  .input {
+    @apply w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700;
+  }
+  .label {
+    @apply flex flex-col gap-1 text-sm font-medium;
+  }
+  .card {
+    @apply rounded-lg border border-zinc-200 p-4 dark:border-zinc-800;
+  }
+  .form-error {
+    @apply rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300;
+  }
+}

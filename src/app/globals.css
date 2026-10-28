@@ -47,3 +47,8 @@ body {
     @apply rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300;
   }
 }
+
+.rdp-root {
+  --rdp-accent-color: var(--color-sky-700);
+  --rdp-accent-background-color: var(--color-sky-50);
+}

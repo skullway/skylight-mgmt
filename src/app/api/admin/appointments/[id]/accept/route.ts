@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAdmin } from "@/lib/auth";
 import { getProvider } from "@/lib/clinics";
-import { CLINIC_TZ } from "@/lib/clinics/deepLink";
+import { TZ } from "@/lib/time";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp";
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +36,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   try {
     await sendWhatsAppTemplate(appt.customerPhone, "appointment_approved", [
       appt.customerName,
-      appt.slot.startsAt.toLocaleString("he-IL", { timeZone: CLINIC_TZ }),
+      appt.slot.startsAt.toLocaleString("he-IL", { timeZone: TZ }),
       appt.clinic.name,
     ]);
   } catch (e) {

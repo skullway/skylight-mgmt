@@ -1,6 +1,8 @@
 import "server-only";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getServerSession, type NextAuthOptions } from "next-auth";
+import type { NextAuthOptions } from "next-auth";
+import { getToken } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
@@ -57,9 +59,20 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
+// Reads the session JWT from the Cookie header rather than via getServerSession(), which calls
+// cookies(): in Next 16 dev, cookies() throws an InvariantError while a page re-renders after a
+// Server Action. headers() doesn't have that problem.
 export async function getAdminSession() {
-  const session = await getServerSession(authOptions);
-  return session?.user.admin ? session : null;
+  const header = (await headers()).get("cookie") ?? "";
+  const cookies = Object.fromEntries(
+    header
+      .split(/;\s*/)
+      .filter(Boolean)
+      .map((c) => [c.slice(0, c.indexOf("=")), c.slice(c.indexOf("=") + 1)])
+  );
+  const token = await getToken({ req: { cookies, headers: {} } as never });
+  if (!token?.admin) return null;
+  return { user: { name: token.name ?? null, email: token.email ?? null, admin: true } };
 }
 
 export async function isAdmin(): Promise<boolean> {

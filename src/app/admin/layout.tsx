@@ -3,7 +3,11 @@ import { Suspense } from "react";
 import { requireAdminPage } from "@/lib/auth";
 import { SignOutButton } from "./SignOutButton";
 
-const NAV = [{ href: "/admin", label: "לוח בקרה" }];
+const NAV = [
+  { href: "/admin", label: "לוח בקרה" },
+  { href: "/admin/availability", label: "זמינות" },
+  { href: "/admin/clinics", label: "קליניקות" },
+];
 
 export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   return (

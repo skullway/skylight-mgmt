@@ -1,39 +1,125 @@
-generator client { provider = "prisma-client-js" }
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
-enum AppointmentStatus { PENDING CONFIRMED DENIED CANCELLED }
+datasource db {
+  provider = "postgresql"
+}
+
+enum SlotStatus {
+  OPEN // bookable
+  HELD // has a PENDING or CONFIRMED appointment
+  CLOSED // therapist withdrew it
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  DENIED
+  CANCELLED
+}
+
+enum ClinicIntegration {
+  DEEP_LINK // open clinic site with prefilled params
+  WEB_LOGIN // later: server logs in with therapist creds
+  MANUAL // no automation; therapist books by hand
+}
+
+enum RoomReservationStatus {
+  NOT_STARTED
+  RESERVED // therapist confirmed (or automation succeeded)
+  FAILED
+  RELEASED // cancelled at clinic after appointment cancel
+}
+
+enum MessageKind {
+  APPROVED
+  DENIED
+  CANCELLED
+  REMINDER
+}
+
+enum MessageStatus {
+  SENT
+  FAILED
+}
 
 model Clinic {
-  id        String  @id @default(cuid())
-  name      String
-  apiUrl    String
-  slots     AvailabilitySlot[]
+  id                 String            @id @default(cuid())
+  name               String
+  address            String?
+  siteUrl            String?
+  integration        ClinicIntegration @default(DEEP_LINK)
+  /// e.g. https://clinic.example/book?date={date}&from={start}&to={end}
+  bookingUrlTemplate String?
+  /// AES-GCM encrypted JSON {username,password}; key in CLINIC_CREDS_KEY. Unused until WEB_LOGIN.
+  credentialsEnc     String?
+  active             Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  slots        AvailabilitySlot[]
   appointments Appointment[]
 }
 
 model AvailabilitySlot {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
+  clinicId  String
+  clinic    Clinic     @relation(fields: [clinicId], references: [id])
   startsAt  DateTime
   endsAt    DateTime
-  clinicId  String
-  clinic    Clinic   @relation(fields: [clinicId], references: [id])
-  appointment Appointment?   // one-to-one = a slot can only be booked once
+  status    SlotStatus @default(OPEN)
+  createdAt DateTime   @default(now())
+
+  appointments Appointment[]
+
+  @@unique([clinicId, startsAt])
+  @@index([status, startsAt])
 }
 
 model Appointment {
-  id                  String   @id @default(cuid())
-  slotId              String   @unique
-  slot                AvailabilitySlot @relation(fields: [slotId], references: [id])
-  clinicId            String
-  clinic              Clinic   @relation(fields: [clinicId], references: [id])
-  customerName        String
-  customerPhone       String   // E.164, e.g. +9725XXXXXXXX
-  status              AppointmentStatus @default(PENDING)
-  clinicReservationId String?
-  reminderSentAt      DateTime?
-  createdAt           DateTime @default(now())
+  id       String           @id @default(cuid())
+  slotId   String
+  slot     AvailabilitySlot @relation(fields: [slotId], references: [id])
+  clinicId String
+  clinic   Clinic           @relation(fields: [clinicId], references: [id])
+
+  customerName  String
+  /// E.164, e.g. +972501234567
+  customerPhone String
+  /// Optional; never sent over WhatsApp
+  customerNote  String?
+  manageToken   String  @unique @default(cuid())
+
+  status      AppointmentStatus @default(PENDING)
+  decidedAt   DateTime?
+  denyReason  String?
+  cancelledAt DateTime?
+
+  roomStatus           RoomReservationStatus @default(NOT_STARTED)
+  /// Confirmation id from the clinic, if any
+  clinicReservationRef String?
+
+  reminderSentAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages MessageLog[]
+
+  @@index([status, slotId])
+  @@index([customerPhone])
+}
+
+model MessageLog {
+  id                String        @id @default(cuid())
+  appointmentId     String
+  appointment       Appointment   @relation(fields: [appointmentId], references: [id])
+  kind              MessageKind
+  status            MessageStatus
+  providerMessageId String?
+  error             String?
+  createdAt         DateTime      @default(now())
+
+  @@index([appointmentId, kind])
 }

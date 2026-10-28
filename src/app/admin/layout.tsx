@@ -5,6 +5,8 @@ import { SignOutButton } from "./SignOutButton";
 
 const NAV = [
   { href: "/admin", label: "לוח בקרה" },
+  { href: "/admin/requests", label: "בקשות" },
+  { href: "/admin/appointments", label: "פגישות" },
   { href: "/admin/availability", label: "זמינות" },
   { href: "/admin/clinics", label: "קליניקות" },
 ];

@@ -1,7 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma, RoomReservationStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { getProvider } from "@/lib/clinics";
 
 export type BookingInput = {
   slotId: string;
@@ -52,7 +53,7 @@ export async function createBooking(input: BookingInput): Promise<BookingResult>
 // Returns the appointment when this call did the cancelling, null if it wasn't cancellable.
 export async function cancelAppointment(where: Prisma.AppointmentWhereUniqueInput) {
   return db.$transaction(async (tx) => {
-    const appt = await tx.appointment.findUnique({ where, include: { slot: true } });
+    const appt = await tx.appointment.findUnique({ where, include: { slot: true, clinic: true } });
     if (!appt || appt.slot.startsAt <= new Date()) return null;
 
     const { count } = await tx.appointment.updateMany({
@@ -64,4 +65,50 @@ export async function cancelAppointment(where: Prisma.AppointmentWhereUniqueInpu
     await tx.availabilitySlot.update({ where: { id: appt.slotId }, data: { status: "OPEN" } });
     return appt;
   });
+}
+
+// PENDING -> CONFIRMED, then asks the clinic provider how the room gets reserved.
+// Returns null when the appointment wasn't pending (or its slot already passed).
+export async function acceptAppointment(id: string) {
+  const { count } = await db.appointment.updateMany({
+    where: { id, status: "PENDING", slot: { startsAt: { gt: new Date() } } },
+    data: { status: "CONFIRMED", decidedAt: new Date() },
+  });
+  if (count === 0) return null;
+
+  const appt = await db.appointment.findUniqueOrThrow({ where: { id }, include: { slot: true, clinic: true } });
+  const reservation = await getProvider(appt.clinic).reserveRoom({
+    startsAt: appt.slot.startsAt,
+    endsAt: appt.slot.endsAt,
+    idempotencyKey: appt.id,
+  });
+  if (reservation.kind === "reserved") {
+    await db.appointment.update({
+      where: { id },
+      data: { roomStatus: "RESERVED", clinicReservationRef: reservation.reservationRef },
+    });
+  }
+  return { appt, reservation };
+}
+
+// PENDING -> DENIED and frees the slot (or closes it if it already passed).
+export async function denyAppointment(id: string, reason: string | null) {
+  return db.$transaction(async (tx) => {
+    const { count } = await tx.appointment.updateMany({
+      where: { id, status: "PENDING" },
+      data: { status: "DENIED", decidedAt: new Date(), denyReason: reason },
+    });
+    if (count === 0) return null;
+
+    const appt = await tx.appointment.findUniqueOrThrow({ where: { id }, include: { slot: true, clinic: true } });
+    await tx.availabilitySlot.update({
+      where: { id: appt.slotId },
+      data: { status: appt.slot.startsAt > new Date() ? "OPEN" : "CLOSED" },
+    });
+    return appt;
+  });
+}
+
+export async function setRoomStatus(id: string, roomStatus: RoomReservationStatus) {
+  await db.appointment.update({ where: { id }, data: { roomStatus } });
 }

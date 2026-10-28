@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { formatPhone } from "@/lib/phone";
 import { formatDay, timeKey } from "@/lib/time";
 import { cancelBooking } from "./actions";
-import { CancelButton } from "./CancelButton";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 // The URL is the guest's credential: keep it out of search engines and Referer headers.
 export const metadata: Metadata = {
@@ -82,7 +82,15 @@ async function Booking({
         </dd>
       </dl>
 
-      {cancellable && <CancelButton action={cancelBooking.bind(null, appt.manageToken)} />}
+      {cancellable && (
+        <ConfirmButton
+          action={cancelBooking.bind(null, appt.manageToken)}
+          label="ביטול הפגישה"
+          question="לבטל את הפגישה?"
+          confirmLabel="כן, לבטל"
+          backLabel="לא, להשאיר"
+        />
+      )}
       {(appt.status === "DENIED" || appt.status === "CANCELLED") && (
         <Link href="/book" className="btn-primary self-start">
           קביעת מועד חדש

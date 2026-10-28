@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin/appointments", label: "פגישות" },
   { href: "/admin/availability", label: "זמינות" },
   { href: "/admin/clinics", label: "קליניקות" },
+  { href: "/admin/messages", label: "הודעות" },
 ];
 
 export default function AdminLayout({ children }: LayoutProps<"/admin">) {
